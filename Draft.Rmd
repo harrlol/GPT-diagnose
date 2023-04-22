@@ -1,0 +1,121 @@
+---
+title: "Group 23 STAT 4710 Project"
+author:
+- Harry Li
+- William Lee
+- Isabelle Lin
+date: ''
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+    number_sections: yes
+  html_document:
+    code_folding: hide
+    highlight: haddock
+    theme: lumen
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+    number_sections: yes
+editor_options: 
+  chunk_output_type: inline
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = "hide", fig.width=6, fig.height=4)
+if (!require("pacman")) install.packages("pacman")
+#options(scipen = 1, digits = 3)
+pacman::p_load(tree, rpart, randomForest, ranger, rattle, pROC, partykit, ggplot2, glmnet,lda, data.table, ISLR, dplyr,chatgpt)
+
+remotes::install_github("jcrodriguez1989/chatgpt")
+Sys.setenv(OPENAI_API_KEY = "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", OPENAI_VERBOSE=FALSE)
+```
+
+```{r}
+wordscan <- function(inString, wordlist) {
+  words <- gregexpr("\\w+", inString, perl=TRUE)
+  words <- regmatches(inString, words)[[1]]
+  words_low <- tolower(words)
+
+  # Loop through the words and pick up specific words
+  picked_up_words <- c()
+  for (word in words_low) {
+    if (word %in% wordlist) {
+      picked_up_words <- c(picked_up_words, word)
+    }
+  }
+  if (is.null(picked_up_words)) {
+    picked_up_words = "None"
+  }
+  
+  out <- paste(picked_up_words, collapse=", ")
+  # Return the picked up words
+  return(out)
+}
+```
+
+
+
+```{r}
+#disease prediction
+data1 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/Disease Diag. from Symptoms/Training.csv",stringsAsFactors = TRUE)
+#text mining disease prediction
+data2 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/Symptom2DiseaseGPT.csv")
+#cat(intersect(data1$prognosis,data2$label))
+data3.1 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/symptom_Description.csv")
+data3.2 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/dataset.csv")
+data3.3 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/symptom_precaution.csv")
+data3.4 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/Symptom-severity.csv")
+```
+
+The below block generates a ChatGPT response for each patient symptom description found in data2, as well as record the ChatGPT diagnosis *if* the diagnosis overlaps with the possible diagnoses found in data2. The resulting table is recorded down. 
+
+```{r}
+specific_words <- unlist(lapply(unique(data2$label), tolower))
+
+for (sentence in data2$text) {
+  idx <- which(data2$text==sentence)
+  ask_in <- paste(sentence, " Suggest possible disease diagnosis in one sentence")
+  response <- ask_chatgpt(ask_in)
+  data2[idx,4] <- response
+  data2[idx,5] <- wordscan(response, specific_words)
+  cat(idx,"/", nrow(data2), "\n")
+}
+
+write.csv(data2, "/Users/harrlol/Desktop/STAT 4710 Project/Symptom2DiseaseGPT.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
