@@ -23,6 +23,12 @@ editor_options:
 urlcolor: blue
 ---
 
+Datasets used in this project are obtained from the below 3 sources:
+ - data1: https://www.kaggle.com/datasets/kaushil268/disease-prediction-using-machine-learning
+ - data2: https://www.kaggle.com/datasets/niyarrbarman/symptom2disease
+ - data3: https://www.kaggle.com/datasets/itachi9604/disease-symptom-description-dataset
+In addition, ChatGPT was used to generate data using its API services.
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, results = "hide", fig.width=6, fig.height=4)
 if (!require("pacman")) install.packages("pacman")
@@ -30,7 +36,7 @@ if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tree, rpart, randomForest, ranger, rattle, pROC, partykit, ggplot2, glmnet,lda, data.table, ISLR, dplyr,chatgpt)
 
 remotes::install_github("jcrodriguez1989/chatgpt")
-Sys.setenv(OPENAI_API_KEY = "XX-XXXXXXXXXXXXXXXXXXXXXXXXXXXX", OPENAI_VERBOSE=FALSE)
+Sys.setenv(OPENAI_API_KEY = "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", OPENAI_VERBOSE=FALSE)
 ```
 
 ```{r}
@@ -54,23 +60,46 @@ wordscan <- function(inString, wordlist) {
   # Return the picked up words
   return(out)
 }
+
+
+#used for data3.2, collects all unique symptoms across 18 symptom variables, and process out the " "
+getSymptom <- function(dataset, start, end) {
+  unique.by.col <- c()
+  for (i in (start:end)) {
+    unique.by.col <- append(unique.by.col, unique(dataset[,i]))
+  }
+  
+  pre.out <- unique(unique.by.col)
+  out <- c()
+
+  for (string in pre.out){
+    out <- append(out, trimws(string))
+  }
+  
+  out <- out[out!=""]
+  
+  return(out)
+}
 ```
 
 
 
 ```{r}
-#disease prediction
+#disease prediction using ML
 data1 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/Disease Diag. from Symptoms/Training.csv",stringsAsFactors = TRUE)
-#text mining disease prediction
+#symptom to disease
 data2 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/Symptom2DiseaseGPT.csv")
-#cat(intersect(data1$prognosis,data2$label))
-data3.1 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/symptom_Description.csv")
+#disease-symptom dataset
+#really the only dataset useful
 data3.2 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/dataset.csv")
+data3.1 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/symptom_Description.csv")
 data3.3 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/symptom_precaution.csv")
 data3.4 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/Symptom-severity.csv")
 ```
 
 The below block generates a ChatGPT response for each patient symptom description found in data2, as well as record the ChatGPT diagnosis *if* the diagnosis overlaps with the possible diagnoses found in data2. The resulting table is recorded down. 
+
+DON'T RUN
 
 ```{r}
 specific_words <- unlist(lapply(unique(data2$label), tolower))
@@ -87,8 +116,17 @@ for (sentence in data2$text) {
 write.csv(data2, "/Users/harrlol/Desktop/STAT 4710 Project/Symptom2DiseaseGPT.csv")
 ```
 
+Data wrangling data3.2 to find all possible symptoms recorded across all symptom variables.
+
+```{r}
+symp3 <- getSymptom(data3.2, 2, 18)
+
+#proof that data1 is fake
+which((data1[11,]==data1[19,])==FALSE)
 
 
+intersect(names(data1[1:132]),symp3)
+```
 
 
 
