@@ -30,7 +30,7 @@ if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tree, rpart, randomForest, ranger, rattle, pROC, partykit, ggplot2, glmnet,lda, data.table, ISLR, dplyr,chatgpt)
 
 remotes::install_github("jcrodriguez1989/chatgpt")
-Sys.setenv(OPENAI_API_KEY = "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", OPENAI_VERBOSE=FALSE)
+Sys.setenv(OPENAI_API_KEY = "XX-XXXXXXXXXXXXXXXXXXXXXXXXXXXX", OPENAI_VERBOSE=FALSE)
 ```
 
 ```{r}
