@@ -32,12 +32,16 @@ In addition, ChatGPT was used to generate data using its API services.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, results = "hide", fig.width=6, fig.height=4)
 if (!require("pacman")) install.packages("pacman")
+if (!require(devtools)) install.packages("devtools")
+devtools::install_github("gaospecial/ggVennDiagram")
 #options(scipen = 1, digits = 3)
-pacman::p_load(tree, rpart, randomForest, ranger, rattle, pROC, partykit, ggplot2, glmnet,lda, data.table, ISLR, dplyr,chatgpt)
-
+pacman::p_load(tree, rpart, randomForest, ranger, rattle, pROC, partykit, ggplot2, glmnet,lda, data.table, ISLR, dplyr,chatgpt, ggVennDiagram, sf)
 remotes::install_github("jcrodriguez1989/chatgpt")
-Sys.setenv(OPENAI_API_KEY = "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", OPENAI_VERBOSE=FALSE)
+Sys.setenv(OPENAI_API_KEY = "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", OPENAI_VERBOSE=FALSE)
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 ```
+
+Functions developed for this project.
 
 ```{r}
 wordscan <- function(inString, wordlist) {
@@ -61,8 +65,7 @@ wordscan <- function(inString, wordlist) {
   return(out)
 }
 
-
-#used for data3.2, collects all unique symptoms across 18 symptom variables, and process out the " "
+#used for data3.2, collects all unique symptoms across 18 symptom variables
 getSymptom <- function(dataset, start, end) {
   unique.by.col <- c()
   for (i in (start:end)) {
@@ -70,38 +73,55 @@ getSymptom <- function(dataset, start, end) {
   }
   
   pre.out <- unique(unique.by.col)
-  out <- c()
+  return(pre.out)
+}
 
-  for (string in pre.out){
+#process out ALL " " in each strig in string list
+trimSpaceAll <- function(string_list) {
+  out <- c()
+  for (string in string_list) {
+    out <- append(out, gsub(" ", "", string))
+  }
+  out <- out[out!=""]
+  return(out)
+}
+
+#process out only heading or trailing " " in each string in string list
+trimSpaceOut <- function(string_list) {
+  out <- c()
+  for (string in string_list) {
     out <- append(out, trimws(string))
   }
-  
   out <- out[out!=""]
-  
   return(out)
 }
 ```
 
-
+Data import step, preliminary NA handling.
 
 ```{r}
 #disease prediction using ML
 data1 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/Disease Diag. from Symptoms/Training.csv",stringsAsFactors = TRUE)
+data1 <- data1[,-134]
 #symptom to disease
 data2 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/Symptom2DiseaseGPT.csv")
 #disease-symptom dataset
 #really the only dataset useful
 data3.2 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/dataset.csv")
 data3.1 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/symptom_Description.csv")
-data3.3 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/symptom_precaution.csv")
-data3.4 <- read.csv("/Users/harrlol/Desktop/STAT 4710 Project/archive-12/Symptom-severity.csv")
+
+#no NA
+any(is.na(data1))
+any(is.na(data2))
+any(is.na(data3.1))
+any(is.na(data3.2))
 ```
 
 The below block generates a ChatGPT response for each patient symptom description found in data2, as well as record the ChatGPT diagnosis *if* the diagnosis overlaps with the possible diagnoses found in data2. The resulting table is recorded down. 
 
 DON'T RUN
 
-```{r}
+```{r, eval=FALSE}
 specific_words <- unlist(lapply(unique(data2$label), tolower))
 
 for (sentence in data2$text) {
@@ -116,44 +136,105 @@ for (sentence in data2$text) {
 write.csv(data2, "/Users/harrlol/Desktop/STAT 4710 Project/Symptom2DiseaseGPT.csv")
 ```
 
-Data wrangling data3.2 to find all possible symptoms recorded across all symptom variables.
+Data wrangling data3.2 to find all possible symptoms recorded across all symptom variables. Checking datasets parameter overlap between 3.2 and 1 before heading on and creating the binary data bank.
 
 ```{r}
-symp3 <- getSymptom(data3.2, 2, 18)
+symp3 <- trimSpaceAll(getSymptom(data3.2, 2, 18))
+dis <- trimSpaceOut(getSymptom(data3.2, 1, 1))
 
-#proof that data1 is fake
-which((data1[11,]==data1[19,])==FALSE)
+#these are the symptom variables found in both data1 and data3.2
+symptoms.1.3 <- intersect(names(data1[1:132]),symp3)
+
+#these are the disease(diagnosis) found in both data1 and data3.2
+diseases.1.3 <- intersect(unique(data1$prognosis), dis)
 
 
-intersect(names(data1[1:132]),symp3)
+#the two datasets have about 97% overlap in possible symptoms and 95% overlap in possible diseases
+dis.venn <- Venn(list(names(table(data1$prognosis)), dis))
+v1 <- process_data(dis.venn)
+v1@region$name <- c("Data3.2", "Data1", "In Both")
+v1@setEdge$name <- c("Data3.2", "Data1")
+v1@setLabel$name <- c("Data3.2", "Data1")
+names(v1@region)[6] <- "Name"
+f1.1 <- ggplot() +
+  geom_sf(aes(fill = Name), data = venn_region(v1)) +
+  geom_sf_text(aes(label = name), data = venn_setlabel(v1)) +
+  geom_sf_text(aes(label = count), data = venn_region(v1)) +
+  scale_color_manual(values = alpha(cbPalette, .2)) +
+  scale_fill_manual(values = alpha(cbPalette, .2)) +
+  labs(title="Figure 1.1: Venn Diagram for Disease Types found in the Binary Data Sets") +
+  theme_void() + 
+  theme(plot.caption = element_text(hjust = 0),
+        text = element_text(family = "Times New Roman"),
+        plot.title = element_text(size=18))
+
+sym.venn <- Venn(list(names(data1[1:132]),symp3))
+v2 <- process_data(sym.venn)
+v2@region$name <- c("Data3.2", "Data1", "In Both")
+v2@setEdge$name <- c("Data3.2", "Data1")
+v2@setLabel$name <- c("Data3.2", "Data1")
+names(v2@region)[6] <- "Name"
+f1.2 <- ggplot() +
+  geom_sf(aes(fill = Name), data = venn_region(v2)) +
+  geom_sf_text(aes(label = name), data = venn_setlabel(v2)) +
+  geom_sf_text(aes(label = count), data = venn_region(v2)) +
+  scale_color_manual(values = alpha(cbPalette, .2)) +
+  scale_fill_manual(values = alpha(cbPalette, .2)) +
+  labs(title="Figure 1.2: Venn Diagram for Symtom Types found in the Binary Data Sets") +
+  theme_void() + 
+  theme(plot.caption = element_text(hjust = 0),
+        text = element_text(family = "Times New Roman"),
+        plot.title = element_text(size=18))
+
+ggpubr::ggarrange(f1.1, f1.2, ncol = 1)
 ```
 
+Creating binary data bank
 
+```{r}
+binary.data3.2 <- data.frame(matrix(ncol = 128, nrow = 0))
 
+for (i in (1:nrow(data3.2))) {
+  new_row <- c(rep(0, 127))
+  det <- FALSE
+  for (string in data3.2[i,]){
+    string <- gsub(" ", "", string)
+    idx <- which(string==symptoms.1.3)
+    new_row[idx] <- 1
+    det <- TRUE
+  }
+  if ((data3.2[i,1] %in% diseases.1.3) & det) {
+    binary.data3.2[nrow(binary.data3.2) + 1,128] <- data3.2[i,][1]
+    binary.data3.2[nrow(binary.data3.2),1:127] <- new_row
+  }
+}
+x <- c(symptoms.1.3, "prognosis")
+colnames(binary.data3.2) <- x
 
+trimmed.data1 <- data1[which(data1$prognosis %in% diseases.1.3),]%>%
+  select(symptoms.1.3, prognosis)
 
+#there exists no row where even though a disease is present but no symptom is present
+l <- c()
+for (i in (1:nrow(trimmed.data1))) {
+  if (all(trimmed.data1[1:126,i] == 0)) {
+    append(l, i)
+  }
+}
 
+ll <- c()
+for (i in c(1:128)){
+  if (any(binary.data3.2[,i]!=trimmed.data1[,i])){
+    cat(i)
+  }
+}
 
-
-
-
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+#binary symptom to disease databank
+bdb <- rbind(trimmed.data1, binary.data3.2[which(binary.data3.2[,45]!=trimmed.data1[,45]),])
 ```
 
-## Including Plots
+So it turned out that data1 and data3.2 were almost the exact datasets (for the symptoms and diseases that overlapped), all except for 1 symptom that had around 100 observations with different values. So we take those observations from binary data3.2 and add to the trimmed data1 to obtain our final, cleaned, overlapped, and unique binary data bank resulting from data1 and data3.2.
 
-You can also embed plots, for example:
+```{r}
 
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
